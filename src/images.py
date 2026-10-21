@@ -1,5 +1,8 @@
+import colorsys
 import hashlib
+import math
 import os
+import random
 import re
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
@@ -28,6 +31,29 @@ CARD_EDGE = (44, 44, 58)
 T_BOLT = [
     (0.16, 0.15), (0.84, 0.15), (0.84, 0.33), (0.62, 0.33), (0.50, 0.55), (0.68, 0.55),
     (0.36, 0.90), (0.45, 0.62), (0.28, 0.62), (0.38, 0.33), (0.16, 0.33),
+]
+
+def _tints():
+    """Blue-family variations of the brand accent, used for glows and motifs."""
+    h, sat, v = colorsys.rgb_to_hsv(*(c / 255 for c in ACCENT))
+    out = []
+    for dh in (0.0, -0.06, 0.05):
+        r, g, b = colorsys.hsv_to_rgb((h + dh) % 1, sat, v)
+        out.append((int(r * 255), int(g * 255), int(b * 255)))
+    return out
+
+
+TINTS = _tints()
+
+# Which motif a story gets: first match wins (checked against category + headline)
+MOTIFS = [
+    ("space", ("SPACE", "SPACEX", "NASA", "ROCKET", "SATELLITE", "MOON", "MARS", "ORBIT")),
+    ("security", ("SECURITY", "CYBER", "HACK", "HACKERS", "BREACH", "PRIVACY", "MALWARE", "RANSOMWARE", "VULNERABILITY")),
+    ("game", ("GAMING", "GAME", "GAMES", "NINTENDO", "XBOX", "PLAYSTATION", "CONSOLE", "ESPORTS")),
+    ("gadgets", ("GADGETS", "GADGET", "PHONE", "PHONES", "SMARTPHONE", "SMARTPHONES", "IPHONE", "ANDROID", "LAPTOP", "WEARABLE", "DEVICE", "HARDWARE")),
+    ("chip", ("CHIP", "CHIPS", "SEMICONDUCTOR", "SEMICONDUCTORS", "PROCESSOR", "NVIDIA", "MEMORY", "GPU")),
+    ("ai", ("AI", "ARTIFICIAL", "ROBOT", "CHATBOT", "OPENAI", "GEMINI", "DEEPSEEK", "NEURAL", "LLM", "MODEL", "MODELS")),
+    ("business", ("BUSINESS", "STARTUP", "STARTUPS", "FUNDING", "STOCK", "STOCKS", "MARKET", "MARKETS", "FINANCE", "CRYPTO", "ACQUIRES", "REVENUE", "PROFIT", "IPO", "INVESTORS")),
 ]
 
 DISPLAY = "Anton-Regular.ttf"
@@ -68,21 +94,21 @@ def _grain(img, amount=0.10):
     return Image.blend(img, ImageChops.overlay(img, Image.merge("RGB", (noise,) * 3)), amount)
 
 
-def _glow(img, cx, cy, radius, alpha=90):
+def _glow(img, cx, cy, radius, alpha=90, color=None):
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(layer).ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=ACCENT + (alpha,))
+    ImageDraw.Draw(layer).ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=(color or ACCENT) + (alpha,))
     layer = layer.filter(ImageFilter.GaussianBlur(radius / 2))
     return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
 
 
-def _grid_background(glow_xy, glow_alpha=70):
+def _grid_background(glow_xy, glow_alpha=70, tint=None):
     img = Image.new("RGB", (W, H), INK)
     d = ImageDraw.Draw(img)
     for x in range(0, W, 60):
         d.line([(x, 0), (x, H)], fill=(19, 19, 27), width=2)
     for y in range(0, H, 60):
         d.line([(0, y), (W, y)], fill=(19, 19, 27), width=2)
-    return _grain(_glow(img, *glow_xy, 330, glow_alpha), 0.08)
+    return _grain(_glow(img, *glow_xy, 330, glow_alpha, tint), 0.08)
 
 
 # ---------------------------------------------------------------- brand parts
@@ -128,8 +154,12 @@ def _arrow(d, x, y, length=64, color=ACCENT, width=7):
     d.line([(x + length - 22, y - 22), (x + length, y), (x + length - 22, y + 22)], fill=color, width=width, joint="curve")
 
 
-def _headline(d, text, highlight, max_lines, bottom_baseline):
-    """Anton headline, key words in the accent colour. Returns top y of the block."""
+def _headline(d, text, highlight, max_lines, anchor, mode="bottom"):
+    """Anton headline, key words in the accent colour. Returns the top y of the block.
+
+    mode "bottom": anchor is the last baseline; "top": anchor is the top of the text;
+    "center": anchor is the vertical centre of the block.
+    """
     text = text.upper()
     size = 132
     while True:
@@ -142,39 +172,194 @@ def _headline(d, text, highlight, max_lines, bottom_baseline):
     marked = {_norm(w) for w in (highlight or "").split() if _norm(w)}
     if not marked:  # fall back to the longest word
         marked = {max((_norm(w) for w in text.split()), key=len)}
-    top = bottom_baseline - step * (len(lines) - 1)
+    block = step * (len(lines) - 1)
+    if mode == "top":
+        first = anchor + int(size * 0.92)
+    elif mode == "center":
+        first = int(anchor - block / 2 + size * 0.375)
+    else:
+        first = anchor - block
     space = d.textlength(" ", font=f)
     for i, line in enumerate(lines):
-        x, y = PAD, top + i * step
+        x, y = PAD, first + i * step
         for word in line.split():
             color = ACCENT if _norm(word) in marked else WHITE
             d.text((x, y), word, font=f, fill=color, anchor="ls")
             x += d.textlength(word, font=f) + space
-    return top - int(size * 0.92)
+    return first - int(size * 0.92)
+
+
+# ---------------------------------------------------------------- per-post theme
+
+def _rot(pts, cx, cy, deg):
+    a = math.radians(deg)
+    ca, sa = math.cos(a), math.sin(a)
+    return [(cx + (x - cx) * ca - (y - cy) * sa, cy + (x - cx) * sa + (y - cy) * ca) for x, y in pts]
+
+
+def _ellipse_pts(cx, cy, rx, ry, deg=0, n=160):
+    pts = [(cx + rx * math.cos(2 * math.pi * i / n), cy + ry * math.sin(2 * math.pi * i / n)) for i in range(n + 1)]
+    return _rot(pts, cx, cy, deg)
+
+
+def _rrect_pts(cx, cy, w, h, r, deg=0, steps=8):
+    pts = []
+    for ccx, ccy, a0 in ((cx + w / 2 - r, cy - h / 2 + r, -90), (cx + w / 2 - r, cy + h / 2 - r, 0),
+                         (cx - w / 2 + r, cy + h / 2 - r, 90), (cx - w / 2 + r, cy - h / 2 + r, 180)):
+        for i in range(steps + 1):
+            a = math.radians(a0 + 90 * i / steps)
+            pts.append((ccx + r * math.cos(a), ccy + r * math.sin(a)))
+    return _rot(pts, cx, cy, deg)
+
+
+def _theme(data):
+    """Everything that varies per post, derived from the headline so all 3 slides agree."""
+    headline = data["headline"]
+    seed = int(hashlib.md5(headline.encode()).hexdigest()[:8], 16)
+    words = {_norm(w) for w in f"{data.get('category', '')} {headline}".split()}
+    category = {_norm(w) for w in data.get("category", "").split()}
+    motif = "bolt"
+    for pool in (category, words):  # the category decides first, headline words second
+        found = next((name for name, keys in MOTIFS if any(k in pool for k in keys)), None)
+        if found:
+            motif = found
+            break
+    layout = ("bottom", "bottom", "center", "top")[(seed >> 3) % 4]
+    if layout == "top":
+        glow = (200 + seed % 700, 820 + (seed >> 8) % 280)
+        region = (200, 560, W + 160, 1300)
+    else:
+        glow = (200 + seed % 700, 220 + (seed >> 8) % 320)
+        region = (260, 40, W + 180, 860)
+    return {"seed": seed, "motif": motif, "tint": TINTS[seed % 3], "layout": layout, "glow": glow, "region": region}
+
+
+def _motif(img, theme, region):
+    """Large, faint line-art for the story's topic, cropped by the canvas edge."""
+    kind, tint = theme["motif"], theme["tint"]
+    rng = random.Random(theme["seed"])
+    x0, y0, x1, y1 = region
+    cw, ch = x1 - x0, y1 - y0
+    cx, cy = x0 + cw / 2, y0 + ch / 2
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    fill, soft, line = tint + (26,), tint + (80,), tint + (125,)
+    tilt = rng.randint(-14, 14)
+
+    if kind == "ai":  # neural network
+        pts = [(x0 + rng.random() * cw, y0 + rng.random() * ch) for _ in range(26)]
+        for p in pts:
+            near = sorted(pts, key=lambda q: (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2)[1:4]
+            for q in near:
+                d.line([p, q], fill=tint + (70,), width=3)
+        for x, y in pts:
+            r = rng.choice((7, 9, 12, 20))
+            if r >= 20:
+                d.ellipse((x - r, y - r, x + r, y + r), fill=fill, outline=line, width=3)
+            else:
+                d.ellipse((x - r, y - r, x + r, y + r), fill=tint + (150,))
+
+    elif kind == "space":  # orbits, planet, moon, stars
+        k = min(cw, ch) / 800
+        deg = -25 + tilt
+        for rx, ry in ((330, 120), (480, 175), (640, 235), (800, 295)):
+            d.line(_ellipse_pts(cx, cy, rx * k, ry * k, deg), fill=soft, width=4)
+        d.ellipse((cx - 140 * k, cy - 140 * k, cx + 140 * k, cy + 140 * k), fill=tint + (45,), outline=line, width=4)
+        a = rng.uniform(0, 2 * math.pi)
+        mx, my = _rot([(cx + 480 * k * math.cos(a), cy + 175 * k * math.sin(a))], cx, cy, deg)[0]
+        d.ellipse((mx - 22, my - 22, mx + 22, my + 22), fill=tint + (210,))
+        for _ in range(45):
+            x, y, r = rng.uniform(x0 - 200, x1), rng.uniform(y0, y1), rng.choice((2, 3, 4))
+            d.ellipse((x - r, y - r, x + r, y + r), fill=tint + (rng.randint(80, 200),))
+
+    elif kind == "gadgets":  # phone
+        k = ch / 880
+        w, h = 520 * k, 1020 * k
+        deg = tilt + (12 if tilt >= 0 else -12)
+        px, py = cx + 70, cy
+        d.polygon(_rrect_pts(px, py, w, h, 70 * k, deg), fill=tint + (22,), outline=line, width=4)
+        d.polygon(_rrect_pts(px, py, w - 50 * k, h - 60 * k, 48 * k, deg), outline=soft, width=3)
+        d.polygon(_rrect_pts(px, py - h / 2 + 52 * k, 150 * k, 26 * k, 13 * k, deg), fill=tint + (110,))
+        for i in range(4):
+            rowy = py - h / 2 + (170 + i * 95) * k
+            d.polygon(_rrect_pts(px, rowy, (w - 120 * k) * (1 if i % 2 == 0 else 0.7), 40 * k, 14 * k, deg), fill=tint + (36,), outline=soft, width=2)
+        d.polygon(_rrect_pts(px, py + h / 2 - 44 * k, 150 * k, 10 * k, 5 * k, deg), fill=tint + (110,))
+
+    elif kind == "security":  # shield with keyhole
+        hs = ch * 0.95
+        unit = [(0.1, 0.12), (0.5, 0.0), (0.9, 0.12), (0.9, 0.5), (0.82, 0.7), (0.5, 1.0), (0.18, 0.7), (0.1, 0.5)]
+        def place(u):
+            return _rot([(cx + (x - 0.5) * hs * 0.9, cy + (y - 0.5) * hs) for x, y in u], cx, cy, tilt)
+        d.polygon(place(unit), fill=fill, outline=line, width=5)
+        kc = place([(0.5, 0.42)])[0]
+        r = 0.085 * hs
+        d.ellipse((kc[0] - r, kc[1] - r, kc[0] + r, kc[1] + r), fill=tint + (110,))
+        d.polygon(place([(0.47, 0.46), (0.53, 0.46), (0.57, 0.64), (0.43, 0.64)]), fill=tint + (110,))
+
+    elif kind == "business":  # rising bars with a trend line
+        n = 7
+        slot = cw / (n * 1.15)
+        tops = []
+        for i in range(n):
+            bh = ch * (0.22 + 0.68 * i / (n - 1)) * rng.uniform(0.85, 1.12)
+            bx = x0 + i * slot * 1.15
+            d.rounded_rectangle((bx, y1 - bh, bx + slot, y1), 10, fill=fill, outline=soft, width=3)
+            tops.append((bx + slot / 2, y1 - bh - 50))
+        d.line(tops, fill=line, width=6, joint="curve")
+        for x, y in tops:
+            d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=tint + (200,))
+
+    elif kind == "chip":  # processor with pins and traces
+        half = min(cw, ch) * 0.26
+        d.polygon(_rrect_pts(cx, cy, half * 2, half * 2, 40, tilt), fill=fill, outline=line, width=5)
+        d.polygon(_rrect_pts(cx, cy, half * 1.1, half * 1.1, 22, tilt), outline=soft, width=3)
+        dot = _rot([(cx - half * 0.7, cy - half * 0.7)], cx, cy, tilt)[0]
+        d.ellipse((dot[0] - 9, dot[1] - 9, dot[0] + 9, dot[1] + 9), fill=tint + (160,))
+        for i in range(-3, 4):
+            o = i * half * 0.27
+            for a, b in (((cx + o, cy - half), (cx + o, cy - half - 90)), ((cx + o, cy + half), (cx + o, cy + half + 90)),
+                         ((cx - half, cy + o), (cx - half - 90, cy + o)), ((cx + half, cy + o), (cx + half + 90, cy + o))):
+                d.line(_rot([a, b], cx, cy, tilt), fill=soft, width=5)
+        for i in (-2, 0, 2):
+            o = i * half * 0.27
+            far = _rot([(cx + o, cy - half - 90), (cx + o, cy - half - 170), (cx + o + 120, cy - half - 250)], cx, cy, tilt)
+            d.line(far, fill=tint + (60,), width=3, joint="curve")
+
+    elif kind == "game":  # gamepad
+        k = min(cw, ch) / 900
+        d.polygon(_rrect_pts(cx, cy, 900 * k, 440 * k, 200 * k, tilt), fill=fill, outline=line, width=5)
+        lx, ly = cx - 270 * k, cy - 20 * k
+        cross = [(-45, -135), (45, -135), (45, -45), (135, -45), (135, 45), (45, 45), (45, 135), (-45, 135), (-45, 45), (-135, 45), (-135, -45), (-45, -45)]
+        d.polygon(_rot([(lx + x * k, ly + y * k) for x, y in cross], cx, cy, tilt), fill=tint + (40,), outline=line, width=4)
+        for dx, dy in ((0, -85), (85, 0), (0, 85), (-85, 0)):
+            bx, by = _rot([(cx + 270 * k + dx * k, cy - 20 * k + dy * k)], cx, cy, tilt)[0]
+            r = 38 * k
+            d.ellipse((bx - r, by - r, bx + r, by + r), fill=tint + (40,), outline=line, width=4)
+        for sx in (-110, 110):
+            sx_, sy_ = _rot([(cx + sx * k, cy + 110 * k)], cx, cy, tilt)[0]
+            r = 55 * k
+            d.ellipse((sx_ - r, sy_ - r, sx_ + r, sy_ + r), outline=soft, width=4)
+
+    else:  # the T-bolt brand mark
+        size = max(cw, ch) * 1.25
+        pts = [(cx + (x - 0.5) * size, cy + (y - 0.5) * size) for x, y in T_BOLT]
+        d.polygon(_rot(pts, cx, cy, -8 + tilt), fill=fill, outline=line, width=4)
+
+    return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
 
 
 # ---------------------------------------------------------------- slides
 
-def _giant_mark(img, seed):
-    """Oversized outlined T-bolt, cropped by the canvas edge. Position varies per story."""
-    size = 1250
-    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    d.polygon([(x * size, y * size) for x, y in T_BOLT], fill=ACCENT + (26,), outline=ACCENT + (120,), width=4)
-    layer = layer.rotate(-8 + (seed >> 4) % 17, resample=Image.BICUBIC)
-    base = img.convert("RGBA")
-    base.alpha_composite(layer, (W - 760 + (seed >> 12) % 160, -110 + (seed >> 20) % 140))
-    return base.convert("RGB")
-
-
 def cover(data, handle):
-    seed = int(hashlib.md5(data["headline"].encode()).hexdigest()[:8], 16)
-    img = _giant_mark(_grid_background((220 + seed % 600, 260 + (seed >> 8) % 300), glow_alpha=95), seed)
+    t = _theme(data)
+    img = _motif(_grid_background(t["glow"], glow_alpha=95, tint=t["tint"]), t, t["region"])
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
     _chip(d, data.get("category") or "TECH")
 
-    top = _headline(d, data["headline"], data.get("highlight"), 4, H - 235)
+    mode = t["layout"]
+    anchor = {"bottom": H - 235, "top": 330, "center": 690}[mode]
+    top = _headline(d, data["headline"], data.get("highlight"), 4, anchor, mode)
     bar_y = top - 40
     d.rounded_rectangle((PAD, bar_y - 6, PAD + 130, bar_y + 6), 6, fill=ACCENT)
     if data.get("source"):
@@ -188,7 +373,8 @@ def cover(data, handle):
 
 
 def takeaways(data, handle):
-    img = _grid_background((W - 80, 120))
+    t = _theme(data)
+    img = _motif(_grid_background((200 + (t['seed'] >> 5) % 700, 120), tint=t['tint']), t, (W - 600, -60, W + 140, 440))
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
     _chip(d, data.get("category") or "TECH")
@@ -221,27 +407,44 @@ def takeaways(data, handle):
     return img
 
 
+def _icon(d, kind, cx, cy):
+    c, w = ACCENT, 6
+    if kind == "save":  # bookmark
+        pts = [(cx - 20, cy - 28), (cx + 20, cy - 28), (cx + 20, cy + 28), (cx, cy + 12), (cx - 20, cy + 28), (cx - 20, cy - 28)]
+        d.line(pts, fill=c, width=w, joint="curve")
+    elif kind == "share":  # arrow flying up-right
+        d.line([(cx - 24, cy + 24), (cx + 24, cy - 24)], fill=c, width=w)
+        d.line([(cx - 2, cy - 26), (cx + 26, cy - 26), (cx + 26, cy + 2)], fill=c, width=w, joint="curve")
+    else:  # follow: plus in a circle
+        d.ellipse((cx - 30, cy - 30, cx + 30, cy + 30), outline=c, width=w)
+        d.line([(cx - 14, cy), (cx + 14, cy)], fill=c, width=w)
+        d.line([(cx, cy - 14), (cx, cy + 14)], fill=c, width=w)
+
+
 def outro(data, handle):
-    img = _grain(Image.new("RGB", (W, H), ACCENT), 0.10)
+    t = _theme(data)
+    img = _motif(_grid_background((W // 2, 420), glow_alpha=95, tint=t['tint']), t, (260, 20, W + 160, 900))
     d = ImageDraw.Draw(img)
-    _logo(img, d, handle, fg=INK, bg=ACCENT, text=INK)
+    _logo(img, d, handle)
 
-    big = _font(DISPLAY, 210)
-    for i, line in enumerate(["TECH NEWS,", "DAILY."]):
-        d.text((PAD, 470 + i * 225), line, font=big, fill=INK, anchor="ls")
+    big = _font(DISPLAY, 190)
+    d.text((PAD, 470), "STAY AHEAD", font=big, fill=WHITE, anchor="ls")
+    d.text((PAD, 690), "OF TECH.", font=big, fill=ACCENT, anchor="ls")
+    d.text((PAD, 770), "Daily tech news, explained in seconds.", font=_font(MED, 44), fill=MUTED, anchor="ls")
 
-    f = _font(XBOLD, 62)
-    w = d.textlength(handle, font=f) + 90
-    d.rounded_rectangle((PAD, 790, PAD + w, 890), 50, fill=INK)
-    d.text((PAD + w / 2, 840), handle, font=f, fill=ACCENT, anchor="mm")
+    f = _font(XBOLD, 64)
+    w = d.textlength(handle, font=f) + 100
+    d.rounded_rectangle((PAD, 830, PAD + w, 940), 55, fill=ACCENT)
+    d.text((PAD + w / 2, 885), handle, font=f, fill=INK, anchor="mm")
 
-    row = _font(XBOLD, 48)
-    for i, (verb, rest) in enumerate([("SAVE", "this for later"), ("SHARE", "with a friend"), ("FOLLOW", "for daily drops")]):
-        y = 990 + i * 82
-        _arrow(d, PAD, y, 50, INK, 7)
-        d.text((PAD + 80, y), verb, font=row, fill=INK, anchor="lm")
-        d.text((PAD + 80 + d.textlength(verb + "  ", font=row), y), rest, font=_font(MED, 48), fill=INK, anchor="lm")
-    _dots(d, 2, 3, active=INK, idle=tuple(int(a * 0.6 + b * 0.4) for a, b in zip(ACCENT, INK)))
+    gap = 24
+    cw = (W - 2 * PAD - 2 * gap) / 3
+    for i, (kind, label) in enumerate([("save", "SAVE"), ("share", "SHARE"), ("follow", "FOLLOW")]):
+        x0 = PAD + i * (cw + gap)
+        d.rounded_rectangle((x0, 1010, x0 + cw, 1190), 28, fill=CARD, outline=CARD_EDGE, width=2)
+        _icon(d, kind, x0 + cw / 2, 1075)
+        d.text((x0 + cw / 2, 1150), label, font=_font(XBOLD, 36), fill=WHITE, anchor="mm")
+    _dots(d, 2, 3)
     return img
 
 
