@@ -165,7 +165,7 @@ def _arrow(d, x, y, length=64, color=ACCENT, width=7):
 
 
 def _headline(d, text, highlight, max_lines, anchor, mode="bottom"):
-    """Anton headline, key words in the accent colour. Returns the top y of the block.
+    """Anton headline, key words in the accent colour. Returns (top, bottom) y of the block.
 
     mode "bottom": anchor is the last baseline; "top": anchor is the top of the text;
     "center": anchor is the vertical centre of the block.
@@ -196,7 +196,7 @@ def _headline(d, text, highlight, max_lines, anchor, mode="bottom"):
             color = ACCENT if _norm(word) in marked else WHITE
             d.text((x, y), word, font=f, fill=color, anchor="ls")
             x += d.textlength(word, font=f) + space
-    return first - int(size * 0.92)
+    return first - int(size * 0.92), first + block + int(size * 0.25)
 
 
 # ---------------------------------------------------------------- per-post theme
@@ -407,18 +407,39 @@ def _background(theme, glow_xy, glow_alpha=80):
     return _grain(img, 0.08)
 
 
+def _scrim(img, y0, y1, left=195, right=125, feather=170):
+    """Dark overlay behind a text block so busy backgrounds never fight the text.
+
+    Strongest on the left (where text starts), fading in and out vertically.
+    """
+    hm = Image.new("L", (W, H), 0)
+    hd = ImageDraw.Draw(hm)
+    for x in range(W):
+        hd.line([(x, 0), (x, H)], fill=int(left + (right - left) * x / W))
+    vm = Image.new("L", (W, H), 0)
+    vd = ImageDraw.Draw(vm)
+    for y in range(max(0, int(y0 - feather)), min(H, int(y1 + feather))):
+        f = (y - (y0 - feather)) / feather if y < y0 else (1 - (y - y1) / feather if y > y1 else 1)
+        vd.line([(0, y), (W, y)], fill=int(255 * max(0, min(1, f))))
+    mask = ImageChops.multiply(hm, vm)
+    return Image.composite(Image.new("RGB", (W, H), INK), img.convert("RGB"), mask)
+
+
 # ---------------------------------------------------------------- slides
 
 def cover(data, handle):
     t = _theme(data)
     img = _motif(_background(t, t["glow"], 95), t, t["region"])
-    d = ImageDraw.Draw(img)
-    _logo(img, d, handle)
-    _chip(d, data.get("category") or "TECH")
 
     mode = t["layout"]
     anchor = {"bottom": H - 235, "top": 330, "center": 690}[mode]
-    top = _headline(d, data["headline"], data.get("highlight"), 4, anchor, mode)
+    top, bottom = _headline(ImageDraw.Draw(Image.new("RGB", (W, H))), data["headline"], data.get("highlight"), 4, anchor, mode)
+    img = _scrim(img, top - 90, bottom + 50)
+
+    d = ImageDraw.Draw(img)
+    _logo(img, d, handle)
+    _chip(d, data.get("category") or "TECH")
+    _headline(d, data["headline"], data.get("highlight"), 4, anchor, mode)
     bar_y = top - 40
     d.rounded_rectangle((PAD, bar_y - 6, PAD + 130, bar_y + 6), 6, fill=ACCENT)
     if data.get("source"):
@@ -434,6 +455,7 @@ def cover(data, handle):
 def takeaways(data, handle):
     t = _theme(data)
     img = _motif(_background(t, (200 + (t['seed'] >> 5) % 700, 120), 85), t, (W - 440, -230, W + 200, 270))
+    img = _scrim(img, 215, 345, 170, 110, 70)
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
     _chip(d, data.get("category") or "TECH")
@@ -483,6 +505,7 @@ def _icon(d, kind, cx, cy):
 def outro(data, handle):
     t = _theme(data)
     img = _motif(_background(t, (W // 2, 420), 95), t, (260, 20, W + 160, 900))
+    img = _scrim(img, 300, 950)
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
 
