@@ -21,7 +21,9 @@ gadgets, money, or something that affects everyday people. Then write the post.
 Rules:
 - Use ONLY facts present in the title/snippet. Do not invent numbers, quotes or details.
 - Plain, punchy language. No clickbait lies, no emojis in the headline.
-- headline: max 9 words, written to stop the scroll.
+- headline: max 8 words, written to stop the scroll.
+- highlight: the 1-3 most important words of the headline, copied exactly from it.
+- category: one or two words in caps, such as AI, GADGETS, STARTUPS, SECURITY, BUSINESS, SPACE, GAMING.
 - points: exactly 3 short takeaways, each max 16 words.
 - caption: first line is a hook (max 12 words), then 2-3 short sentences explaining why it matters.
 - question: one short question that invites comments.
@@ -29,7 +31,7 @@ Rules:
 - image_prompt: a vivid description of a cinematic, futuristic background illustration that \
 fits the story. No text, no logos, no real people, no letters.
 
-Return JSON: {{"pick": int, "headline": str, "points": [str,str,str], "caption": str, \
+Return JSON: {{"pick": int, "headline": str, "highlight": str, "category": str, "points": [str,str,str], "caption": str, \
 "question": str, "hashtags": [str], "image_prompt": str}}"""
 
 

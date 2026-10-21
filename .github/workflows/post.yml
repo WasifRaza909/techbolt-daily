@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 20
     env:
       BRAND_HANDLE: ${{ vars.BRAND_HANDLE }}
+      BRAND_NAME: ${{ vars.BRAND_NAME }}
+      BRAND_ACCENT: ${{ vars.BRAND_ACCENT }}
       DRY_RUN: ${{ vars.DRY_RUN }}
     steps:
       - uses: actions/checkout@v4

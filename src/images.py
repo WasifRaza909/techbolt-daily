@@ -1,32 +1,43 @@
 import io
 import os
+import re
 import time
 import urllib.parse
 
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1080, 1350  # 4:5 portrait, best use of feed space
+PAD = 72
 WATERMARK_PAD = 100
-ACCENT = (0, 200, 255)
 
-BOLD_FONTS = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "C:/Windows/Fonts/arialbd.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-]
-REG_FONTS = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "C:/Windows/Fonts/arial.ttf",
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-]
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")
+LOGO_PATH = os.path.join(ASSETS, "logo.png")  # optional: drop in your own logo
 
 
-def _font(paths, size):
-    for p in paths:
-        if os.path.exists(p):
-            return ImageFont.truetype(p, size)
-    return ImageFont.load_default(size)
+def _hex(value):
+    value = value.lstrip("#")
+    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+
+ACCENT = _hex(os.environ.get("BRAND_ACCENT") or "C8FF2E")  # electric lime
+INK = (10, 10, 14)
+WHITE = (245, 245, 247)
+MUTED = (140, 140, 158)
+CARD = (22, 22, 31)
+CARD_EDGE = (44, 44, 58)
+
+DISPLAY = "Anton-Regular.ttf"
+MED = "Barlow-Medium.ttf"
+BOLD = "Barlow-Bold.ttf"
+XBOLD = "Barlow-ExtraBold.ttf"
+
+
+def _font(name, size):
+    try:
+        return ImageFont.truetype(os.path.join(ASSETS, "fonts", name), size)
+    except OSError:
+        return ImageFont.load_default(size)
 
 
 def _wrap(draw, text, font, max_w):
@@ -43,6 +54,12 @@ def _wrap(draw, text, font, max_w):
     return lines
 
 
+def _norm(word):
+    return re.sub(r"[^A-Z0-9]", "", word.upper())
+
+
+# ---------------------------------------------------------------- backgrounds
+
 def _gradient(top, bottom):
     img = Image.new("RGB", (W, H))
     px = ImageDraw.Draw(img)
@@ -53,7 +70,7 @@ def _gradient(top, bottom):
 
 
 def _ai_background(prompt):
-    """Free image generation via Pollinations. Falls back to a gradient on failure."""
+    """Free image generation via Pollinations. Falls back to a dark gradient on failure."""
     url = (
         "https://image.pollinations.ai/prompt/"
         + urllib.parse.quote(prompt + ", cinematic, dramatic lighting, high detail, no text")
@@ -74,87 +91,191 @@ def _ai_background(prompt):
                 return img.crop((left, top, left + W, top + H))
         except requests.RequestException:
             pass
-    return _gradient((10, 20, 60), (80, 20, 120))
+    return _gradient((14, 18, 30), (30, 20, 50))
 
 
-def _darken_bottom(img, start=0.35):
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(overlay)
-    for y in range(int(H * start), H):
-        alpha = int(235 * (y - H * start) / (H * (1 - start)))
-        d.line([(0, y), (W, y)], fill=(0, 0, 0, alpha))
-    return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+def _grain(img, amount=0.10):
+    noise = Image.effect_noise((W, H), 70)
+    return Image.blend(img, ImageChops.overlay(img, Image.merge("RGB", (noise,) * 3)), amount)
 
 
-def _footer(d, handle, text):
-    d.text((70, H - 90), handle, font=_font(BOLD_FONTS, 34), fill=(255, 255, 255))
-    f = _font(REG_FONTS, 34)
-    d.text((W - 70 - d.textlength(text, font=f), H - 90), text, font=f, fill=ACCENT)
+def _glow(img, cx, cy, radius, alpha=90):
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(layer).ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=ACCENT + (alpha,))
+    layer = layer.filter(ImageFilter.GaussianBlur(radius / 2))
+    return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
 
 
-def cover(headline, image_prompt, handle):
-    img = _darken_bottom(_ai_background(image_prompt))
+def _grid_background(glow_xy):
+    img = Image.new("RGB", (W, H), INK)
     d = ImageDraw.Draw(img)
-    tag_f = _font(BOLD_FONTS, 34)
-    d.rounded_rectangle((70, 70, 70 + d.textlength("TECH NEWS", font=tag_f) + 50, 140), 35, fill=ACCENT)
-    d.text((95, 85), "TECH NEWS", font=tag_f, fill=(0, 0, 0))
+    for x in range(0, W, 60):
+        d.line([(x, 0), (x, H)], fill=(19, 19, 27), width=2)
+    for y in range(0, H, 60):
+        d.line([(0, y), (W, y)], fill=(19, 19, 27), width=2)
+    return _grain(_glow(img, *glow_xy, 330, 70), 0.08)
 
-    f = _font(BOLD_FONTS, 92)
-    lines = _wrap(d, headline.upper(), f, W - 140)
-    while len(lines) > 5:
-        f = _font(BOLD_FONTS, f.size - 8)
-        lines = _wrap(d, headline.upper(), f, W - 140)
-    y = H - 160 - len(lines) * (f.size + 14)
-    for line in lines:
-        d.text((70, y), line, font=f, fill=(255, 255, 255), stroke_width=2, stroke_fill=(0, 0, 0))
-        y += f.size + 14
-    _footer(d, handle, "Swipe  >")
+
+def _shade(img):
+    """Darken the top (for the logo) and a lot of the bottom (for the headline)."""
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    for y in range(int(H * 0.22)):
+        d.line([(0, y), (W, y)], fill=INK + (int(170 * (1 - y / (H * 0.22))),))
+    start = int(H * 0.28)
+    for y in range(start, H):
+        d.line([(0, y), (W, y)], fill=INK + (int(248 * ((y - start) / (H - start)) ** 0.8),))
+    return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
+
+
+# ---------------------------------------------------------------- brand parts
+
+def _brand_name(handle):
+    return (os.environ.get("BRAND_NAME") or handle.lstrip("@")).upper()
+
+
+def _logo(img, d, handle, x=PAD, y=PAD, size=64, fg=ACCENT, bg=INK, text=WHITE):
+    """Logo mark + wordmark. Uses assets/logo.png if present."""
+    if os.path.exists(LOGO_PATH):
+        logo = Image.open(LOGO_PATH).convert("RGBA")
+        logo.thumbnail((size * 4, size))
+        img.paste(logo, (x, y), logo)
+        return
+    d.rounded_rectangle((x, y, x + size, y + size), 16, fill=fg)
+    bolt = [(0.58, 0.12), (0.26, 0.56), (0.46, 0.56), (0.40, 0.90), (0.74, 0.42), (0.53, 0.42)]
+    d.polygon([(x + px * size, y + py * size) for px, py in bolt], fill=bg)
+    d.text((x + size + 20, y + size / 2), _brand_name(handle), font=_font(XBOLD, 38), fill=text, anchor="lm")
+
+
+def _chip(d, label, right=W - PAD, cy=PAD + 32):
+    f = _font(XBOLD, 30)
+    label = label.upper()
+    w = d.textlength(label, font=f) + 52
+    d.rounded_rectangle((right - w, cy - 29, right, cy + 29), 29, fill=ACCENT)
+    d.text((right - w / 2, cy), label, font=f, fill=INK, anchor="mm")
+
+
+def _dots(d, idx, total, active=ACCENT, idle=(80, 80, 96), cy=H - 80):
+    gap, r = 34, 8
+    x0 = W / 2 - gap * (total - 1) / 2
+    for i in range(total):
+        cx = x0 + gap * i
+        if i == idx:
+            d.rounded_rectangle((cx - 20, cy - r, cx + 20, cy + r), r, fill=active)
+        else:
+            d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=idle)
+
+
+def _arrow(d, x, y, length=64, color=ACCENT, width=7):
+    d.line([(x, y), (x + length, y)], fill=color, width=width)
+    d.line([(x + length - 22, y - 22), (x + length, y), (x + length - 22, y + 22)], fill=color, width=width, joint="curve")
+
+
+def _headline(d, text, highlight, max_lines, bottom_baseline):
+    """Anton headline, key words in the accent colour. Returns top y of the block."""
+    text = text.upper()
+    size = 132
+    while True:
+        f = _font(DISPLAY, size)
+        lines = _wrap(d, text, f, W - 2 * PAD)
+        if len(lines) <= max_lines or size <= 84:
+            break
+        size -= 6
+    step = int(size * 1.08)
+    marked = {_norm(w) for w in (highlight or "").split() if _norm(w)}
+    if not marked:  # fall back to the longest word
+        marked = {max((_norm(w) for w in text.split()), key=len)}
+    top = bottom_baseline - step * (len(lines) - 1)
+    space = d.textlength(" ", font=f)
+    for i, line in enumerate(lines):
+        x, y = PAD, top + i * step
+        for word in line.split():
+            color = ACCENT if _norm(word) in marked else WHITE
+            d.text((x, y), word, font=f, fill=color, anchor="ls")
+            x += d.textlength(word, font=f) + space
+    return top - int(size * 0.92)
+
+
+# ---------------------------------------------------------------- slides
+
+def cover(data, handle):
+    img = _grain(_shade(_ai_background(data["image_prompt"])), 0.07)
+    d = ImageDraw.Draw(img)
+    _logo(img, d, handle)
+    _chip(d, data.get("category") or "TECH")
+
+    top = _headline(d, data["headline"], data.get("highlight"), 4, H - 235)
+    d.rounded_rectangle((PAD, top - 46, PAD + 130, top - 34), 6, fill=ACCENT)
+
+    d.line([(PAD, H - 150), (W - PAD, H - 150)], fill=(70, 70, 82), width=2)
+    d.text((PAD, H - 90), handle, font=_font(BOLD, 34), fill=WHITE, anchor="lm")
+    d.text((W - PAD - 90, H - 90), "SWIPE", font=_font(XBOLD, 34), fill=ACCENT, anchor="rm")
+    _arrow(d, W - PAD - 70, H - 90)
     return img
 
 
-def takeaways(points, handle):
-    img = _gradient((12, 18, 45), (45, 15, 80))
+def takeaways(data, handle):
+    img = _grid_background((W - 80, 120))
     d = ImageDraw.Draw(img)
-    d.text((70, 90), "KEY TAKEAWAYS", font=_font(BOLD_FONTS, 54), fill=ACCENT)
-    f = _font(REG_FONTS, 50)
-    wrapped = [_wrap(d, p, f, W - 70 - 190 - 40) for p in points[:3]]
-    block = sum(len(w) * 66 + 90 for w in wrapped) - 90
-    y = 150 + (H - 150 - 150 - block) // 2  # center between title and footer
-    for i, p in enumerate(points[:3], 1):
-        d.ellipse((70, y, 150, y + 80), fill=ACCENT)
-        d.text((110, y + 40), str(i), font=_font(BOLD_FONTS, 46), fill=(0, 0, 0), anchor="mm")
-        for line in wrapped[i - 1]:
-            d.text((190, y + 4), line, font=f, fill=(255, 255, 255))
-            y += 66
-        y += 90
-    _footer(d, handle, "Swipe  >")
+    _logo(img, d, handle)
+    _chip(d, data.get("category") or "TECH")
+
+    title = _font(DISPLAY, 118)
+    d.text((PAD, 330), "WHY IT", font=title, fill=WHITE, anchor="ls")
+    d.text((PAD + d.textlength("WHY IT ", font=title), 330), "MATTERS", font=title, fill=ACCENT, anchor="ls")
+
+    f = _font(BOLD, 46)
+    pad_x, pad_y, gap = 40, 38, 30
+    num_w = 110
+    boxes = []
+    for p in data["points"][:3]:
+        lines = _wrap(d, p, f, W - 2 * PAD - 2 * pad_x - num_w)
+        boxes.append((lines, max(len(lines) * 60, 66) + 2 * pad_y))
+    block = sum(h for _, h in boxes) + gap * (len(boxes) - 1)
+    y = 400 + (H - 400 - 170 - block) // 2
+    for i, (lines, h) in enumerate(boxes, 1):
+        d.rounded_rectangle((PAD, y, W - PAD, y + h), 26, fill=CARD, outline=CARD_EDGE, width=2)
+        d.rounded_rectangle((PAD, y + 22, PAD + 9, y + h - 22), 5, fill=ACCENT)
+        d.text((PAD + pad_x + 12, y + h / 2), f"0{i}", font=_font(DISPLAY, 62), fill=ACCENT, anchor="lm")
+        ty = y + h / 2 - (len(lines) * 60) / 2 + 30
+        for line in lines:
+            d.text((PAD + pad_x + num_w, ty), line, font=f, fill=WHITE, anchor="lm")
+            ty += 60
+        y += h + gap
+    _dots(d, 1, 3)
     return img
 
 
-def outro(handle):
-    img = _gradient((45, 15, 80), (0, 90, 140))
+def outro(data, handle):
+    img = _grain(Image.new("RGB", (W, H), ACCENT), 0.10)
     d = ImageDraw.Draw(img)
-    big = _font(BOLD_FONTS, 96)
-    y = 400
-    for line in ["Want daily", "tech news?"]:
-        d.text((W / 2, y), line, font=big, fill=(255, 255, 255), anchor="mm")
-        y += 120
-    d.text((W / 2, y + 40), f"Follow {handle}", font=_font(BOLD_FONTS, 62), fill=ACCENT, anchor="mm")
-    sub = _font(REG_FONTS, 44)
-    d.text((W / 2, y + 160), "Save this post  |  Share with a friend", font=sub, fill=(255, 255, 255), anchor="mm")
+    _logo(img, d, handle, fg=INK, bg=ACCENT, text=INK)
+
+    big = _font(DISPLAY, 210)
+    for i, line in enumerate(["TECH NEWS,", "DAILY."]):
+        d.text((PAD, 470 + i * 225), line, font=big, fill=INK, anchor="ls")
+
+    f = _font(XBOLD, 62)
+    w = d.textlength(handle, font=f) + 90
+    d.rounded_rectangle((PAD, 790, PAD + w, 890), 50, fill=INK)
+    d.text((PAD + w / 2, 840), handle, font=f, fill=ACCENT, anchor="mm")
+
+    row = _font(XBOLD, 48)
+    for i, (verb, rest) in enumerate([("SAVE", "this for later"), ("SHARE", "with a friend"), ("FOLLOW", "for daily drops")]):
+        y = 990 + i * 82
+        _arrow(d, PAD, y, 50, INK, 7)
+        d.text((PAD + 80, y), verb, font=row, fill=INK, anchor="lm")
+        d.text((PAD + 80 + d.textlength(verb + "  ", font=row), y), rest, font=_font(MED, 48), fill=INK, anchor="lm")
+    _dots(d, 2, 3, active=INK, idle=(110, 150, 20))
     return img
 
 
 def build_slides(data, handle, out_dir):
     os.makedirs(out_dir, exist_ok=True)
-    slides = [
-        cover(data["headline"], data["image_prompt"], handle),
-        takeaways(data["points"], handle),
-        outro(handle),
-    ]
+    slides = [cover(data, handle), takeaways(data, handle), outro(data, handle)]
     paths = []
     for i, s in enumerate(slides, 1):
         p = os.path.join(out_dir, f"slide{i}.jpg")
-        s.save(p, quality=92)
+        s.save(p, quality=93)
         paths.append(p)
     return paths

@@ -13,6 +13,14 @@ Every run: Google News + tech RSS -> Gemini picks the best story and writes the 
 5. Run the workflow manually (Actions > post-tech-news > Run workflow). In dry-run mode it only builds the post; download the `preview` artifact to check the slides and caption.
 6. When you like the output, set `DRY_RUN` to `false`.
 
+## Branding
+
+Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an electric-lime accent on near-black. Optional settings, as environment variables locally or repo variables on GitHub:
+
+- `BRAND_NAME`: wordmark next to the logo (defaults to your handle)
+- `BRAND_ACCENT`: accent colour as hex, e.g. `FF4D8D` (default `C8FF2E`)
+- Drop your own logo at `assets/logo.png` (transparent PNG) to replace the built-in bolt mark
+
 ## Local preview
 
 ```
