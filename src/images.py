@@ -106,7 +106,7 @@ def _logo(img, d, handle, x=PAD, y=PAD, size=64, fg=ACCENT, bg=INK, text=WHITE):
 
 def _chip(d, label, right=W - PAD, cy=PAD + 32):
     f = _font(XBOLD, 30)
-    label = label.upper()
+    label = label.split(",")[0].strip().upper()
     w = d.textlength(label, font=f) + 52
     d.rounded_rectangle((right - w, cy - 29, right, cy + 29), 29, fill=ACCENT)
     d.text((right - w / 2, cy), label, font=f, fill=INK, anchor="mm")
