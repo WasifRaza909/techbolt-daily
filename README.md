@@ -23,6 +23,7 @@ Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an e
 
 - `BRAND_NAME`: wordmark next to the logo (defaults to `TECHBOLT`)
 - `BRAND_ACCENT`: accent colour as hex, e.g. `C8FF2E` (default `2E90FF`)
+- **Variable slide count.** Set the repo variable `VARIABLE_SLIDES=true` and Gemini writes 2 to 8 takeaways depending on the story, giving 3 to 5 slides. The webhook payload then includes `count` and `image1`..`image5`. Leave it off while your publishing scenario has a fixed number of photo slots.
 - **Every post gets its own look.** The cover, takeaways and closing slide share a theme derived from the headline: a topic motif (AI network, orbits, phone, shield, chip, gamepad, growth bars, or the T-bolt), a headline layout (bottom, centred or top), a blue-family tint, and its own background (dark palette + one of six patterns + two glows).
 - Logo files live in `assets/` (`logo.png`, `logo_ink.png`, `profile.png`). Regenerate the logos after changing the name or colour with `python tools/make_logo.py`, and the 3D profile picture with `python tools/make_profile_3d.py`, or replace them with your own transparent PNGs
 

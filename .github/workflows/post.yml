@@ -20,6 +20,7 @@ jobs:
     env:
       BRAND_HANDLE: ${{ vars.BRAND_HANDLE }}
       BRAND_NAME: ${{ vars.BRAND_NAME }}
+      VARIABLE_SLIDES: ${{ vars.VARIABLE_SLIDES }}
       BRAND_ACCENT: ${{ vars.BRAND_ACCENT }}
       DRY_RUN: ${{ vars.DRY_RUN }}
     steps:

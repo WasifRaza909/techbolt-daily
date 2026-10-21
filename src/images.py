@@ -452,7 +452,7 @@ def cover(data, handle):
     return img
 
 
-def takeaways(data, handle):
+def takeaways(data, handle, points=None, idx=1, total=3, start=1):
     t = _theme(data)
     img = _motif(_background(t, (200 + (t['seed'] >> 5) % 700, 120), 85), t, (W - 440, -230, W + 200, 270))
     img = _scrim(img, 215, 345, 170, 110, 70)
@@ -461,14 +461,15 @@ def takeaways(data, handle):
     _chip(d, data.get("category") or "TECH")
 
     title = _font(DISPLAY, 118)
-    d.text((PAD, 330), "WHY IT", font=title, fill=WHITE, anchor="ls")
-    d.text((PAD + d.textlength("WHY IT ", font=title), 330), "MATTERS", font=title, fill=ACCENT, anchor="ls")
+    a, b = ("WHY IT", "MATTERS") if start == 1 else ("MORE", "DETAILS")
+    d.text((PAD, 330), a, font=title, fill=WHITE, anchor="ls")
+    d.text((PAD + d.textlength(a + " ", font=title), 330), b, font=title, fill=ACCENT, anchor="ls")
 
     f = _font(BOLD, 46)
     pad_x, pad_y, gap = 40, 38, 30
     num_w = 110
     boxes = []
-    for p in data["points"][:3]:
+    for p in (points or data["points"][:3]):
         lines = _wrap(d, p, f, W - 2 * PAD - 2 * pad_x - num_w)
         boxes.append((lines, max(len(lines) * 60, 66) + 2 * pad_y))
     block = sum(h for _, h in boxes) + gap * (len(boxes) - 1)
@@ -476,7 +477,7 @@ def takeaways(data, handle):
     for i, (lines, h) in enumerate(boxes, 1):
         d.rounded_rectangle((PAD, y, W - PAD, y + h), 26, fill=CARD, outline=CARD_EDGE, width=2)
         d.rounded_rectangle((PAD, y + 22, PAD + 9, y + h - 22), 5, fill=ACCENT)
-        d.text((PAD + pad_x + 12, y + h / 2), f"0{i}", font=_font(DISPLAY, 62), fill=ACCENT, anchor="lm")
+        d.text((PAD + pad_x + 12, y + h / 2), f"{start + i - 1:02d}", font=_font(DISPLAY, 62), fill=ACCENT, anchor="lm")
         ty = y + h / 2 - (len(lines) * 60) / 2 + 30
         for line in lines:
             d.text((PAD + pad_x + num_w, ty), line, font=f, fill=WHITE, anchor="lm")
@@ -484,7 +485,7 @@ def takeaways(data, handle):
         y += h + gap
     if data.get("source"):
         d.text((PAD, H - 150), f"SOURCE: {data['source'].upper()}", font=_font(XBOLD, 28), fill=MUTED, anchor="lm")
-    _dots(d, 1, 3)
+    _dots(d, idx, total)
     return img
 
 
@@ -502,7 +503,7 @@ def _icon(d, kind, cx, cy):
         d.line([(cx, cy - 14), (cx, cy + 14)], fill=c, width=w)
 
 
-def outro(data, handle):
+def outro(data, handle, total=3):
     t = _theme(data)
     img = _motif(_background(t, (W // 2, 420), 95), t, (260, 20, W + 160, 900))
     img = _scrim(img, 300, 950)
@@ -526,13 +527,37 @@ def outro(data, handle):
         d.rounded_rectangle((x0, 1010, x0 + cw, 1190), 28, fill=CARD, outline=CARD_EDGE, width=2)
         _icon(d, kind, x0 + cw / 2, 1075)
         d.text((x0 + cw / 2, 1150), label, font=_font(XBOLD, 36), fill=WHITE, anchor="mm")
-    _dots(d, 2, 3)
+    _dots(d, total - 1, total)
     return img
 
 
-def build_slides(data, handle, out_dir):
+def _chunks(points, per_slide=3):
+    """Split takeaways across slides as evenly as possible, at most per_slide on each."""
+    k = max(1, math.ceil(len(points) / per_slide))
+    base, extra = divmod(len(points), k)
+    out, i = [], 0
+    for j in range(k):
+        size = base + (1 if j < extra else 0)
+        out.append(points[i:i + size])
+        i += size
+    return out
+
+
+def build_slides(data, handle, out_dir, variable=False):
+    """Cover + takeaway slides + closing slide.
+
+    With variable=True the number of takeaway slides follows the story (3 to 5 slides in total).
+    Otherwise it is always 3 slides, using the first three takeaways.
+    """
     os.makedirs(out_dir, exist_ok=True)
-    slides = [cover(data, handle), takeaways(data, handle), outro(data, handle)]
+    points = list(data["points"])[:9] if variable else list(data["points"])[:3]
+    groups = _chunks(points)
+    total = len(groups) + 2
+    slides, number = [cover(data, handle)], 1
+    for j, group in enumerate(groups):
+        slides.append(takeaways(data, handle, group, j + 1, total, number))
+        number += len(group)
+    slides.append(outro(data, handle, total))
     paths = []
     for i, s in enumerate(slides, 1):
         p = os.path.join(out_dir, f"slide{i}.jpg")

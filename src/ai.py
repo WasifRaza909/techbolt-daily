@@ -31,12 +31,12 @@ Rules:
 - headline: max 8 words, written to stop the scroll.
 - highlight: the 1-3 most important words of the headline, copied exactly from it.
 - category: ONE word in caps, no commas, such as AI, GADGETS, STARTUPS, SECURITY, BUSINESS, SPACE, GAMING.
-- points: exactly 3 short takeaways, each max 16 words.
+- points: {points_rule}
 - caption: first line is a hook (max 12 words), then 2-3 short sentences explaining why it matters.
 - question: one short question that invites comments.
 - hashtags: 7 relevant hashtags without the # symbol (mix broad and niche).
 
-Return JSON: {{"pick": int, "headline": str, "highlight": str, "category": str, "points": [str,str,str], "caption": str, \
+Return JSON: {{"pick": int, "headline": str, "highlight": str, "category": str, "points": [str],"caption": str, \
 "question": str, "hashtags": [str]}}"""
 
 
@@ -56,13 +56,21 @@ def _call(prompt):
     raise RuntimeError(f"Gemini failed after retries: {r.status_code} {r.text[:200]}")
 
 
-def write_post(stories, recent_headlines):
+POINTS_FIXED = "exactly 3 short takeaways, each max 16 words."
+POINTS_VARIABLE = (
+    "2 to 8 short takeaways, each max 16 words. Use as many as the story genuinely has substance "
+    "for: a thin story gets 2 or 3, a big story with many distinct facts gets 5 to 8. Never pad."
+)
+
+
+def write_post(stories, recent_headlines, variable=False):
     stories = stories[:30]
     candidates = "\n".join(
         f"{i} | {s['title']} | {s['source']} | {s['summary']}" for i, s in enumerate(stories)
     )
     recent = "\n".join(f"- {h}" for h in recent_headlines[-15:]) or "(none)"
-    data = json.loads(_call(PROMPT.format(candidates=candidates, recent=recent)))
+    rule = POINTS_VARIABLE if variable else POINTS_FIXED
+    data = json.loads(_call(PROMPT.format(candidates=candidates, recent=recent, points_rule=rule)))
     story = stories[int(data["pick"])]
-    assert len(data["points"]) >= 3 and data["headline"] and data["caption"]
+    assert len(data["points"]) >= 2 and data["headline"] and data["caption"]
     return story, data
