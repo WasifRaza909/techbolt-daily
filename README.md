@@ -19,7 +19,7 @@ Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an e
 
 - `BRAND_NAME`: wordmark next to the logo (defaults to `TECHBOLT`)
 - `BRAND_ACCENT`: accent colour as hex, e.g. `FF4D8D` (default `C8FF2E`)
-- Drop your own logo at `assets/logo.png` (transparent PNG) to replace the built-in bolt mark
+- Logo files live in `assets/` (`logo.png`, `logo_ink.png`, `profile.png`). Regenerate them after changing the name or colour with `python tools/make_logo.py`, or replace them with your own transparent PNGs
 
 ## Local preview
 
