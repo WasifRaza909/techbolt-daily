@@ -91,7 +91,10 @@ def publish():
     repo = os.environ["GITHUB_REPOSITORY"]
     ref = os.environ.get("GITHUB_REF_NAME", "main")
     urls = [f"https://raw.githubusercontent.com/{repo}/{ref}/{p}" for p in pending["images"]]
-    media_id = instagram.publish_carousel(urls, pending["caption"])
+    if os.environ.get("PUBLISH_WEBHOOK_URL"):  # middleman mode: no Meta developer app needed
+        media_id = instagram.publish_via_webhook(urls, pending["caption"])
+    else:
+        media_id = instagram.publish_carousel(urls, pending["caption"])
 
     posted = _load(POSTED, [])
     posted.append({

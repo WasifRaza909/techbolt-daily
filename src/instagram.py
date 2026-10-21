@@ -51,3 +51,14 @@ def publish_carousel(image_urls, caption):
     parent = _post(f"{user}/media", media_type="CAROUSEL", children=",".join(children), caption=caption)["id"]
     _wait_until_ready(parent)
     return _post(f"{user}/media_publish", creation_id=parent)["id"]
+
+
+def publish_via_webhook(image_urls, caption):
+    """Hand the post to an automation service (e.g. Make.com) that holds its own Instagram connection."""
+    wait_for_urls(image_urls)
+    payload = {"caption": caption, "images": image_urls}
+    payload.update({f"image{i}": u for i, u in enumerate(image_urls, 1)})
+    r = requests.post(os.environ["PUBLISH_WEBHOOK_URL"], json=payload, timeout=60)
+    if not r.ok:
+        raise RuntimeError(f"Webhook error {r.status_code}: {r.text[:300]}")
+    return "webhook"

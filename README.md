@@ -13,6 +13,10 @@ Every run: Google News + tech RSS -> Gemini picks the best story and writes the 
 5. Run the workflow manually (Actions > post-tech-news > Run workflow). In dry-run mode it only builds the post; download the `preview` artifact to check the slides and caption.
 6. When you like the output, set `DRY_RUN` to `false`.
 
+## No Meta developer account? Use a middleman
+
+If you can't register a Meta developer app, set the secret `PUBLISH_WEBHOOK_URL` instead of the Instagram secrets. The pipeline then POSTs `{caption, images, image1, image2, image3}` to that URL, and an automation service that holds its own Instagram connection (for example a Make.com scenario: Webhook -> Instagram for Business "Create a Carousel Post") publishes it.
+
 ## Branding
 
 Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an electric-blue accent on near-black. Optional settings, as environment variables locally or repo variables on GitHub:
