@@ -1,6 +1,6 @@
 # Instagram AI Tech News
 
-Every run: Google News + tech RSS -> Gemini picks the best story and writes the post -> Pillow draws a 3-slide branded carousel (no AI images) -> Instagram Graph API publishes it. Runs 3x/day on GitHub Actions. All free.
+Every run: Google News + tech RSS -> Gemini picks the best story and writes the post -> Pillow draws a 3-slide branded carousel (no AI images) -> Instagram Graph API publishes it. Runs 3x/day (timed for Pakistan, PKT) on GitHub Actions. All free.
 
 ## Setup
 
