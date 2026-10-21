@@ -20,6 +20,10 @@ gadgets, money, or something that affects everyday people. Then write the post.
 
 Rules:
 - Use ONLY facts present in the title/snippet. Do not invent numbers, quotes or details.
+- Write everything in your own words. Never copy the source headline or any sentence from the snippet verbatim, and never use direct quotes.
+- Attribute claims to the publisher (for example "according to <source>" or "<source> reports") when the story is a report, rumour, leak or allegation. Never state rumours or allegations as fact.
+- Do not accuse or speculate about named private individuals or make legal, medical or investment claims. Skip stories about crimes, lawsuits against individuals, tragedies, minors, or adult content and pick another story.
+- No promises about prices, stocks or returns, and no predictions presented as fact.
 - Plain, punchy language. No clickbait lies, no emojis in the headline.
 - headline: max 8 words, written to stop the scroll.
 - highlight: the 1-3 most important words of the headline, copied exactly from it.

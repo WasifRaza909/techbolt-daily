@@ -16,6 +16,14 @@ FEEDS = [
 ]
 
 
+# Topics we never post about: violence, abuse, sexual content, self-harm, deaths
+SENSITIVE = re.compile(
+    r"\b(killed|murder\w*|shooting|suicide|self-harm|rape[ds]?|sexual\w*|abuse[ds]?|terror\w*|"
+    r"massacre|genocide|death toll|dies|dead|porn\w*|nude\w*|child exploitation)\b",
+    re.I,
+)
+
+
 def _norm(title):
     return re.sub(r"[^a-z0-9 ]", "", title.lower()).strip()
 
@@ -47,6 +55,8 @@ def fetch_stories(posted_ids, max_age_hours=24):
             if " - " in title:
                 title, _, suffix = title.rpartition(" - ")
                 source = source or suffix
+            if SENSITIVE.search(title) or SENSITIVE.search(_clean(e.get("summary"))):
+                continue
             sid = story_id(title)
             if sid in seen:
                 continue

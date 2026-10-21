@@ -41,13 +41,18 @@ def _prune_old_posts(keep_days=2):
             shutil.rmtree(path, ignore_errors=True)
 
 
+FINANCE = {"BUSINESS", "STOCKS", "CRYPTO", "FINANCE", "MARKETS", "INVESTING"}
+
+
 def build_caption(story, data):
+    disclaimer = " Not financial advice." if data.get("category", "").upper() in FINANCE else ""
     tags = " ".join("#" + t.lstrip("#").replace(" ", "") for t in data["hashtags"][:8])
     return (
         f"{data['caption']}\n\n"
         f"{data['question']}\n\n"
         f"Save this for later and follow {HANDLE} for daily tech news.\n"
-        f"Source: {story['source']}\n\n"
+        f"Source: {story['source']}. This is our own summary of public reporting; "
+        f"full credit to the original publisher.{disclaimer}\n\n"
         f"{tags}"
     )
 
