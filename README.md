@@ -39,7 +39,7 @@ Images land in `posts/`, caption is printed.
 
 - **No third-party images.** Every slide is drawn in code. Fonts are open-licence (see `assets/fonts/LICENSES.md`) and the logo is our own.
 - **Original wording.** Gemini must rewrite headlines and never copy sentences or use direct quotes from the source.
-- **Attribution on every post.** Cover and takeaways slides name the publisher, and the caption credits it as an original-reporting summary.
+- **Attribution on every post.** Cover and takeaways slides name the publisher, and the caption ends with `Source: <publisher>`.
 - **Careful claims.** Reports, rumours and allegations are attributed to the source, never stated as fact. No investment, medical or legal claims. Finance stories get "Not financial advice."
 - **Sensitive topics skipped.** Violence, abuse, sexual content, self-harm and deaths are filtered out in code before the AI sees them (`SENSITIVE` in `src/news.py`), and the prompt also tells Gemini to avoid crimes, lawsuits against individuals, tragedies and minors.
 - Not legal advice. Good extra steps: put a short disclaimer in your Instagram bio, respond quickly to any takedown request from a publisher, and spot-check posts regularly.
