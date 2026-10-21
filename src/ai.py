@@ -28,11 +28,9 @@ Rules:
 - caption: first line is a hook (max 12 words), then 2-3 short sentences explaining why it matters.
 - question: one short question that invites comments.
 - hashtags: 7 relevant hashtags without the # symbol (mix broad and niche).
-- image_prompt: a vivid description of a cinematic, futuristic background illustration that \
-fits the story. No text, no logos, no real people, no letters.
 
 Return JSON: {{"pick": int, "headline": str, "highlight": str, "category": str, "points": [str,str,str], "caption": str, \
-"question": str, "hashtags": [str], "image_prompt": str}}"""
+"question": str, "hashtags": [str]}}"""
 
 
 def _call(prompt):

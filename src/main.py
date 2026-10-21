@@ -59,6 +59,7 @@ def generate():
         sys.exit("No fresh stories found.")
     story, data = ai.write_post(stories, [p["headline"] for p in posted])
 
+    data["source"] = story["source"]
     folder = f"{time.strftime('%Y%m%d-%H%M')}-{story['id'][:6]}"
     out_dir = os.path.join(POSTS_DIR, folder)
     paths = images.build_slides(data, HANDLE, out_dir)
