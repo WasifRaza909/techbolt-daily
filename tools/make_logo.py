@@ -2,7 +2,7 @@
 
     python tools/make_logo.py
 
-Outputs: logo.png (for dark slides), logo_ink.png (for the lime slide), profile.png (Instagram avatar).
+Outputs: logo.png (for dark slides), logo_ink.png (for the accent-coloured slide), profile.png (Instagram avatar).
 """
 import os
 
@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 ASSETS = os.path.join(ROOT, "assets")
 NAME = os.environ.get("BRAND_NAME", "TECHBOLT").upper()
-ACCENT = tuple(int(os.environ.get("BRAND_ACCENT", "C8FF2E")[i:i + 2], 16) for i in (0, 2, 4))
+ACCENT = tuple(int(os.environ.get("BRAND_ACCENT", "2E90FF")[i:i + 2], 16) for i in (0, 2, 4))
 INK = (10, 10, 14)
 WHITE = (245, 245, 247)
 SS = 4  # supersampling for smooth edges

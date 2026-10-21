@@ -15,10 +15,10 @@ Every run: Google News + tech RSS -> Gemini picks the best story and writes the 
 
 ## Branding
 
-Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an electric-lime accent on near-black. Optional settings, as environment variables locally or repo variables on GitHub:
+Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an electric-blue accent on near-black. Optional settings, as environment variables locally or repo variables on GitHub:
 
 - `BRAND_NAME`: wordmark next to the logo (defaults to `TECHBOLT`)
-- `BRAND_ACCENT`: accent colour as hex, e.g. `FF4D8D` (default `C8FF2E`)
+- `BRAND_ACCENT`: accent colour as hex, e.g. `C8FF2E` (default `2E90FF`)
 - Logo files live in `assets/` (`logo.png`, `logo_ink.png`, `profile.png`). Regenerate them after changing the name or colour with `python tools/make_logo.py`, or replace them with your own transparent PNGs
 
 ## Local preview
