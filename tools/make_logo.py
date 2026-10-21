@@ -2,7 +2,7 @@
 
     python tools/make_logo.py
 
-Outputs: logo.png (for dark slides), logo_ink.png (for the accent-coloured slide), profile.png (Instagram avatar).
+Outputs: logo.png (for dark slides), logo_ink.png (for the accent-coloured slide). The profile picture is made by tools/make_profile_3d.py.
 """
 import os
 
@@ -51,16 +51,7 @@ def lockup(tile, glyph, word_a, word_b, height=256):
     return img
 
 
-def profile(size=1080):
-    img = Image.new("RGBA", (size, size), ACCENT + (255,))
-    glyph = mark(int(size * 0.62), INK, ACCENT, radius=0.22)  # stays inside Instagram's circular crop
-    off = (size - glyph.width) // 2
-    img.paste(glyph, (off, off), glyph)
-    return img.convert("RGB")
-
-
 if __name__ == "__main__":
     lockup(ACCENT, INK, WHITE, ACCENT).save(os.path.join(ASSETS, "logo.png"))
     lockup(INK, ACCENT, INK, INK).save(os.path.join(ASSETS, "logo_ink.png"))
-    profile().save(os.path.join(ASSETS, "profile.png"))
-    print("Wrote logo.png, logo_ink.png, profile.png to", os.path.normpath(ASSETS))
+    print("Wrote logo.png, logo_ink.png to", os.path.normpath(ASSETS))
