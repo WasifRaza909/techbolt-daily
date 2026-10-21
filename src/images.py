@@ -56,6 +56,16 @@ MOTIFS = [
     ("business", ("BUSINESS", "STARTUP", "STARTUPS", "FUNDING", "STOCK", "STOCKS", "MARKET", "MARKETS", "FINANCE", "CRYPTO", "ACQUIRES", "REVENUE", "PROFIT", "IPO", "INVESTORS")),
 ]
 
+# Dark base gradients (top, bottom) and background patterns, picked per post
+PALETTES = [
+    ((6, 16, 44), (8, 8, 14)),    # deep navy
+    ((20, 12, 52), (8, 8, 14)),   # indigo
+    ((4, 30, 40), (6, 10, 14)),   # teal black
+    ((14, 24, 44), (8, 10, 16)),  # steel
+    ((10, 10, 36), (4, 4, 10)),   # midnight
+]
+PATTERNS = ("grid", "dots", "diagonal", "rings", "waves", "plus")
+
 DISPLAY = "Anton-Regular.ttf"
 MED = "Barlow-Medium.ttf"
 BOLD = "Barlow-Bold.ttf"
@@ -231,7 +241,10 @@ def _theme(data):
     else:
         glow = (200 + seed % 700, 220 + (seed >> 8) % 320)
         region = (260, 40, W + 180, 860)
-    return {"seed": seed, "motif": motif, "tint": TINTS[seed % 3], "layout": layout, "glow": glow, "region": region}
+    return {
+        "seed": seed, "motif": motif, "tint": TINTS[seed % 3], "layout": layout, "glow": glow, "region": region,
+        "palette": PALETTES[(seed >> 9) % len(PALETTES)], "pattern": PATTERNS[(seed >> 13) % len(PATTERNS)],
+    }
 
 
 def _motif(img, theme, region):
@@ -243,7 +256,7 @@ def _motif(img, theme, region):
     cx, cy = x0 + cw / 2, y0 + ch / 2
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
-    fill, soft, line = tint + (26,), tint + (80,), tint + (125,)
+    fill, soft, line = tint + (46,), tint + (125,), tint + (200,)
     tilt = rng.randint(-14, 14)
 
     if kind == "ai":  # neural network
@@ -264,7 +277,7 @@ def _motif(img, theme, region):
         deg = -25 + tilt
         for rx, ry in ((330, 120), (480, 175), (640, 235), (800, 295)):
             d.line(_ellipse_pts(cx, cy, rx * k, ry * k, deg), fill=soft, width=4)
-        d.ellipse((cx - 140 * k, cy - 140 * k, cx + 140 * k, cy + 140 * k), fill=tint + (45,), outline=line, width=4)
+        d.ellipse((cx - 140 * k, cy - 140 * k, cx + 140 * k, cy + 140 * k), fill=tint + (80,), outline=line, width=5)
         a = rng.uniform(0, 2 * math.pi)
         mx, my = _rot([(cx + 480 * k * math.cos(a), cy + 175 * k * math.sin(a))], cx, cy, deg)[0]
         d.ellipse((mx - 22, my - 22, mx + 22, my + 22), fill=tint + (210,))
@@ -277,7 +290,7 @@ def _motif(img, theme, region):
         w, h = 520 * k, 1020 * k
         deg = tilt + (12 if tilt >= 0 else -12)
         px, py = cx + 70, cy
-        d.polygon(_rrect_pts(px, py, w, h, 70 * k, deg), fill=tint + (22,), outline=line, width=4)
+        d.polygon(_rrect_pts(px, py, w, h, 70 * k, deg), fill=tint + (40,), outline=line, width=5)
         d.polygon(_rrect_pts(px, py, w - 50 * k, h - 60 * k, 48 * k, deg), outline=soft, width=3)
         d.polygon(_rrect_pts(px, py - h / 2 + 52 * k, 150 * k, 26 * k, 13 * k, deg), fill=tint + (110,))
         for i in range(4):
@@ -348,11 +361,57 @@ def _motif(img, theme, region):
     return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
 
 
+def _background(theme, glow_xy, glow_alpha=80):
+    """Per-post background: palette gradient, a pattern, two glows and film grain."""
+    top, bottom = theme["palette"]
+    img = Image.new("RGB", (W, H))
+    px = ImageDraw.Draw(img)
+    for y in range(H):
+        t = y / H
+        px.line([(0, y), (W, y)], fill=tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)))
+
+    tint, seed = theme["tint"], theme["seed"]
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    line, faint = tint + (46,), tint + (22,)
+    gx, gy = glow_xy
+    kind = theme["pattern"]
+    if kind == "grid":
+        for x in range(0, W, 60):
+            d.line([(x, 0), (x, H)], fill=line, width=2)
+        for y in range(0, H, 60):
+            d.line([(0, y), (W, y)], fill=line, width=2)
+    elif kind == "dots":
+        for x in range(30, W, 54):
+            for y in range(30, H, 54):
+                d.ellipse((x - 3, y - 3, x + 3, y + 3), fill=tint + (90,))
+    elif kind == "diagonal":
+        for k in range(-H, W, 64):
+            d.line([(k, 0), (k + H, H)], fill=line, width=2)
+    elif kind == "rings":
+        for r in range(90, 1700, 95):
+            d.ellipse((gx - r, gy - r, gx + r, gy + r), outline=line, width=2)
+    elif kind == "waves":
+        for y0 in range(-40, H + 40, 56):
+            d.line([(x, y0 + 16 * math.sin(x / 95 + y0 / 45 + seed % 7)) for x in range(0, W + 20, 20)], fill=line, width=2)
+    else:  # plus
+        for x in range(40, W, 80):
+            for y in range(40, H, 80):
+                d.line([(x - 9, y), (x + 9, y)], fill=tint + (100,), width=2)
+                d.line([(x, y - 9), (x, y + 9)], fill=tint + (100,), width=2)
+    img = Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
+
+    img = _glow(img, gx, gy, 340, glow_alpha, tint)
+    other = TINTS[(seed + 1) % 3]
+    img = _glow(img, W - gx // 2, H - gy // 2 if gy < H // 2 else H - gy, 280, 55, other)
+    return _grain(img, 0.08)
+
+
 # ---------------------------------------------------------------- slides
 
 def cover(data, handle):
     t = _theme(data)
-    img = _motif(_grid_background(t["glow"], glow_alpha=95, tint=t["tint"]), t, t["region"])
+    img = _motif(_background(t, t["glow"], 95), t, t["region"])
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
     _chip(d, data.get("category") or "TECH")
@@ -374,7 +433,7 @@ def cover(data, handle):
 
 def takeaways(data, handle):
     t = _theme(data)
-    img = _motif(_grid_background((200 + (t['seed'] >> 5) % 700, 120), tint=t['tint']), t, (W - 600, -60, W + 140, 440))
+    img = _motif(_background(t, (200 + (t['seed'] >> 5) % 700, 120), 85), t, (W - 600, -60, W + 140, 440))
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
     _chip(d, data.get("category") or "TECH")
@@ -423,7 +482,7 @@ def _icon(d, kind, cx, cy):
 
 def outro(data, handle):
     t = _theme(data)
-    img = _motif(_grid_background((W // 2, 420), glow_alpha=95, tint=t['tint']), t, (260, 20, W + 160, 900))
+    img = _motif(_background(t, (W // 2, 420), 95), t, (260, 20, W + 160, 900))
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
 
