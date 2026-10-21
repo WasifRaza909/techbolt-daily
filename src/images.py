@@ -433,7 +433,7 @@ def cover(data, handle):
 
 def takeaways(data, handle):
     t = _theme(data)
-    img = _motif(_background(t, (200 + (t['seed'] >> 5) % 700, 120), 85), t, (W - 600, -60, W + 140, 440))
+    img = _motif(_background(t, (200 + (t['seed'] >> 5) % 700, 120), 85), t, (W - 440, -230, W + 200, 270))
     d = ImageDraw.Draw(img)
     _logo(img, d, handle)
     _chip(d, data.get("category") or "TECH")
