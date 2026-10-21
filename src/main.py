@@ -10,7 +10,8 @@ from . import ai, images, instagram, news
 POSTED = "posted.json"
 PENDING = "out/pending.json"
 POSTS_DIR = "posts"
-HANDLE = os.environ.get("BRAND_HANDLE") or "@yourpage"
+os.environ.setdefault("BRAND_NAME", "TECHBOLT")
+HANDLE = os.environ.get("BRAND_HANDLE") or "@techbolt.daily"
 if not HANDLE.startswith("@"):
     HANDLE = "@" + HANDLE
 

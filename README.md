@@ -9,7 +9,7 @@ Every run: Google News + tech RSS -> Gemini picks the best story and writes the 
 3. **Gemini**: get a free key at aistudio.google.com.
 4. **GitHub**: push this folder to a **public** repo (Instagram fetches images from raw.githubusercontent.com). Then under Settings > Secrets and variables > Actions:
    - Secrets: `GEMINI_API_KEY`, `IG_USER_ID`, `IG_ACCESS_TOKEN`
-   - Variables: `BRAND_HANDLE` (e.g. `@mytechpage`), `DRY_RUN` = `true`
+   - Variables: `BRAND_HANDLE` (`@techbolt.daily`), `DRY_RUN` = `true`
 5. Run the workflow manually (Actions > post-tech-news > Run workflow). In dry-run mode it only builds the post; download the `preview` artifact to check the slides and caption.
 6. When you like the output, set `DRY_RUN` to `false`.
 
@@ -17,7 +17,7 @@ Every run: Google News + tech RSS -> Gemini picks the best story and writes the 
 
 Slides use bundled open-licence fonts (Anton, Barlow in `assets/fonts`) and an electric-lime accent on near-black. Optional settings, as environment variables locally or repo variables on GitHub:
 
-- `BRAND_NAME`: wordmark next to the logo (defaults to your handle)
+- `BRAND_NAME`: wordmark next to the logo (defaults to `TECHBOLT`)
 - `BRAND_ACCENT`: accent colour as hex, e.g. `FF4D8D` (default `C8FF2E`)
 - Drop your own logo at `assets/logo.png` (transparent PNG) to replace the built-in bolt mark
 
