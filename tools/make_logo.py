@@ -13,6 +13,7 @@ ASSETS = os.path.join(ROOT, "assets")
 NAME = os.environ.get("BRAND_NAME", "TECHBOLT").upper()
 ACCENT = tuple(int(os.environ.get("BRAND_ACCENT", "2E90FF")[i:i + 2], 16) for i in (0, 2, 4))
 INK = (10, 10, 14)
+HILITE = tuple(int(c + (255 - c) * 0.38) for c in ACCENT)  # lighter blue, readable on bright backgrounds
 WHITE = (245, 245, 247)
 SS = 4  # supersampling for smooth edges
 
@@ -52,6 +53,6 @@ def lockup(tile, glyph, word_a, word_b, height=256):
 
 
 if __name__ == "__main__":
-    lockup(ACCENT, INK, WHITE, ACCENT).save(os.path.join(ASSETS, "logo.png"))
+    lockup(ACCENT, INK, WHITE, HILITE).save(os.path.join(ASSETS, "logo.png"))
     lockup(INK, ACCENT, INK, INK).save(os.path.join(ASSETS, "logo_ink.png"))
     print("Wrote logo.png, logo_ink.png to", os.path.normpath(ASSETS))

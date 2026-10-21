@@ -42,11 +42,14 @@ def _prune_old_posts(keep_days=2):
 
 
 FINANCE = {"BUSINESS", "STOCKS", "CRYPTO", "FINANCE", "MARKETS", "INVESTING"}
+MONEY_WORDS = ("IPO", "STOCK", "SHARE PRICE", "VALUATION", "INVESTOR", "INVESTMENT", "CRYPTO", "BITCOIN")
 
 
 def build_caption(story, data):
-    disclaimer = ". Not financial advice." if data.get("category", "").upper() in FINANCE else ""
-    tags = " ".join("#" + t.lstrip("#").replace(" ", "") for t in data["hashtags"][:8])
+    text = f"{data['headline']} {data['caption']}".upper()
+    money = data.get("category", "").upper() in FINANCE or any(w in text for w in MONEY_WORDS)
+    disclaimer = ". Not financial advice." if money else ""
+    tags = " ".join("#" + t.lstrip("#").replace(" ", "") for t in data["hashtags"][:10])
     return (
         f"{data['caption']}\n\n"
         f"{data['question']}\n\n"

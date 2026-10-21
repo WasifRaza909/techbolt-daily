@@ -23,9 +23,11 @@ def _hex(value):
 ACCENT = _hex(os.environ.get("BRAND_ACCENT") or "2E90FF")  # electric blue
 INK = (10, 10, 14)
 WHITE = (245, 245, 247)
-MUTED = (140, 140, 158)
-CARD = (22, 22, 31)
-CARD_EDGE = (44, 44, 58)
+MUTED = (176, 186, 210)
+CARD = (22, 36, 68)
+CARD_EDGE = (58, 86, 140)
+HILITE = tuple(int(c + (255 - c) * 0.38) for c in ACCENT)  # lighter blue for highlighted text
+SCRIM = (8, 18, 46)  # deep navy, not black, so slides stay bright on dimmed phone screens
 
 # A "T" whose stem is a lightning bolt, in unit coordinates (the TECHBOLT mark)
 T_BOLT = [
@@ -58,11 +60,11 @@ MOTIFS = [
 
 # Dark base gradients (top, bottom) and background patterns, picked per post
 PALETTES = [
-    ((6, 16, 44), (8, 8, 14)),    # deep navy
-    ((20, 12, 52), (8, 8, 14)),   # indigo
-    ((4, 30, 40), (6, 10, 14)),   # teal black
-    ((14, 24, 44), (8, 10, 16)),  # steel
-    ((10, 10, 36), (4, 4, 10)),   # midnight
+    ((18, 62, 150), (10, 24, 66)),   # royal navy
+    ((46, 34, 124), (16, 14, 54)),   # indigo
+    ((8, 80, 108), (8, 28, 50)),     # teal
+    ((34, 58, 112), (14, 26, 58)),   # steel blue
+    ((24, 34, 108), (10, 12, 46)),   # midnight blue
 ]
 PATTERNS = ("grid", "dots", "diagonal", "rings", "waves", "plus")
 
@@ -148,7 +150,7 @@ def _chip(d, label, right=W - PAD, cy=PAD + 32):
     d.text((right - w / 2, cy), label, font=f, fill=INK, anchor="mm")
 
 
-def _dots(d, idx, total, active=ACCENT, idle=(80, 80, 96), cy=H - 80):
+def _dots(d, idx, total, active=ACCENT, idle=(120, 134, 170), cy=H - 80):
     gap, r = 34, 8
     x0 = W / 2 - gap * (total - 1) / 2
     for i in range(total):
@@ -193,7 +195,7 @@ def _headline(d, text, highlight, max_lines, anchor, mode="bottom"):
     for i, line in enumerate(lines):
         x, y = PAD, first + i * step
         for word in line.split():
-            color = ACCENT if _norm(word) in marked else WHITE
+            color = HILITE if _norm(word) in marked else WHITE
             d.text((x, y), word, font=f, fill=color, anchor="ls")
             x += d.textlength(word, font=f) + space
     return first - int(size * 0.92), first + block + int(size * 0.25)
@@ -373,7 +375,7 @@ def _background(theme, glow_xy, glow_alpha=80):
     tint, seed = theme["tint"], theme["seed"]
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
-    line, faint = tint + (46,), tint + (22,)
+    line, faint = tint + (64,), tint + (22,)
     gx, gy = glow_xy
     kind = theme["pattern"]
     if kind == "grid":
@@ -401,13 +403,14 @@ def _background(theme, glow_xy, glow_alpha=80):
                 d.line([(x, y - 9), (x, y + 9)], fill=tint + (100,), width=2)
     img = Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
 
-    img = _glow(img, gx, gy, 340, glow_alpha, tint)
+    img = _glow(img, gx, gy, 380, min(230, int(glow_alpha * 1.6)), tint)
     other = TINTS[(seed + 1) % 3]
-    img = _glow(img, W - gx // 2, H - gy // 2 if gy < H // 2 else H - gy, 280, 55, other)
-    return _grain(img, 0.08)
+    img = _glow(img, W - gx // 2, H - gy // 2 if gy < H // 2 else H - gy, 320, 100, other)
+    img = _grain(img, 0.08)
+    return img.point(lambda v: int(255 * (v / 255) ** 0.88))  # lift shadows a little for phone screens
 
 
-def _scrim(img, y0, y1, left=195, right=125, feather=170):
+def _scrim(img, y0, y1, left=170, right=105, feather=170):
     """Dark overlay behind a text block so busy backgrounds never fight the text.
 
     Strongest on the left (where text starts), fading in and out vertically.
@@ -422,7 +425,7 @@ def _scrim(img, y0, y1, left=195, right=125, feather=170):
         f = (y - (y0 - feather)) / feather if y < y0 else (1 - (y - y1) / feather if y > y1 else 1)
         vd.line([(0, y), (W, y)], fill=int(255 * max(0, min(1, f))))
     mask = ImageChops.multiply(hm, vm)
-    return Image.composite(Image.new("RGB", (W, H), INK), img.convert("RGB"), mask)
+    return Image.composite(Image.new("RGB", (W, H), SCRIM), img.convert("RGB"), mask)
 
 
 # ---------------------------------------------------------------- slides
@@ -452,6 +455,38 @@ def cover(data, handle):
     return img
 
 
+TEXT_COLOR = (216, 226, 244)
+CARD_PAD_X, CARD_PAD_Y, CARD_NUM_W, CARD_GAP = 40, 30, 120, 26
+CARDS_TOP, CARDS_BOTTOM = 395, 1170
+
+
+def _card_layout(d, point):
+    """Measure one takeaway card: wrapped title and text lines plus the card height."""
+    width = W - 2 * PAD - 2 * CARD_PAD_X - CARD_NUM_W
+    title_lines = _wrap(d, point["title"], _font(BOLD, 40), width) if point.get("title") else []
+    text_lines = _wrap(d, point["text"], _font(MED, 33), width)
+    height = 2 * CARD_PAD_Y + len(title_lines) * 50 + (10 if title_lines else 0) + len(text_lines) * 43
+    return {"title": title_lines, "text": text_lines, "height": height}
+
+
+def _pack(points, max_slides):
+    """Greedily fill slides with takeaway cards by measured height. Extra points are dropped."""
+    d = ImageDraw.Draw(Image.new("RGB", (W, H)))
+    room = CARDS_BOTTOM - CARDS_TOP
+    groups, current, used = [], [], 0
+    for p in points:
+        layout = _card_layout(d, p)
+        need = layout["height"] + (CARD_GAP if current else 0)
+        if current and used + need > room:
+            groups.append(current)
+            current, used, need = [], 0, layout["height"]
+        current.append(p)
+        used += need
+    if current:
+        groups.append(current)
+    return groups[:max_slides]
+
+
 def takeaways(data, handle, points=None, idx=1, total=3, start=1):
     t = _theme(data)
     img = _motif(_background(t, (200 + (t['seed'] >> 5) % 700, 120), 85), t, (W - 440, -230, W + 200, 270))
@@ -463,26 +498,27 @@ def takeaways(data, handle, points=None, idx=1, total=3, start=1):
     title = _font(DISPLAY, 118)
     a, b = ("WHY IT", "MATTERS") if start == 1 else ("MORE", "DETAILS")
     d.text((PAD, 330), a, font=title, fill=WHITE, anchor="ls")
-    d.text((PAD + d.textlength(a + " ", font=title), 330), b, font=title, fill=ACCENT, anchor="ls")
+    d.text((PAD + d.textlength(a + " ", font=title), 330), b, font=title, fill=HILITE, anchor="ls")
 
-    f = _font(BOLD, 46)
-    pad_x, pad_y, gap = 40, 38, 30
-    num_w = 110
-    boxes = []
-    for p in (points or data["points"][:3]):
-        lines = _wrap(d, p, f, W - 2 * PAD - 2 * pad_x - num_w)
-        boxes.append((lines, max(len(lines) * 60, 66) + 2 * pad_y))
-    block = sum(h for _, h in boxes) + gap * (len(boxes) - 1)
-    y = 400 + (H - 400 - 170 - block) // 2
-    for i, (lines, h) in enumerate(boxes, 1):
+    layouts = [_card_layout(d, p) for p in (points or data["points"][:3])]
+    block = sum(l["height"] for l in layouts) + CARD_GAP * (len(layouts) - 1)
+    y = CARDS_TOP + max(0, (CARDS_BOTTOM - CARDS_TOP - block) // 2)
+    ft, fx = _font(BOLD, 40), _font(MED, 33)
+    for i, l in enumerate(layouts):
+        h = l["height"]
         d.rounded_rectangle((PAD, y, W - PAD, y + h), 26, fill=CARD, outline=CARD_EDGE, width=2)
         d.rounded_rectangle((PAD, y + 22, PAD + 9, y + h - 22), 5, fill=ACCENT)
-        d.text((PAD + pad_x + 12, y + h / 2), f"{start + i - 1:02d}", font=_font(DISPLAY, 62), fill=ACCENT, anchor="lm")
-        ty = y + h / 2 - (len(lines) * 60) / 2 + 30
-        for line in lines:
-            d.text((PAD + pad_x + num_w, ty), line, font=f, fill=WHITE, anchor="lm")
-            ty += 60
-        y += h + gap
+        d.text((PAD + CARD_PAD_X + 12, y + CARD_PAD_Y - 2), f"{start + i:02d}", font=_font(DISPLAY, 58), fill=HILITE, anchor="la")
+        tx, ty = PAD + CARD_PAD_X + CARD_NUM_W, y + CARD_PAD_Y
+        for line in l["title"]:
+            d.text((tx, ty), line, font=ft, fill=WHITE, anchor="la")
+            ty += 50
+        if l["title"]:
+            ty += 10
+        for line in l["text"]:
+            d.text((tx, ty), line, font=fx, fill=TEXT_COLOR, anchor="la")
+            ty += 43
+        y += h + CARD_GAP
     if data.get("source"):
         d.text((PAD, H - 150), f"SOURCE: {data['source'].upper()}", font=_font(XBOLD, 28), fill=MUTED, anchor="lm")
     _dots(d, idx, total)
@@ -512,7 +548,7 @@ def outro(data, handle, total=3):
 
     big = _font(DISPLAY, 190)
     d.text((PAD, 470), "STAY AHEAD", font=big, fill=WHITE, anchor="ls")
-    d.text((PAD, 690), "OF TECH.", font=big, fill=ACCENT, anchor="ls")
+    d.text((PAD, 690), "OF TECH.", font=big, fill=HILITE, anchor="ls")
     d.text((PAD, 770), "Daily tech news, explained in seconds.", font=_font(MED, 44), fill=MUTED, anchor="ls")
 
     f = _font(XBOLD, 64)
@@ -531,27 +567,14 @@ def outro(data, handle, total=3):
     return img
 
 
-def _chunks(points, per_slide=3):
-    """Split takeaways across slides as evenly as possible, at most per_slide on each."""
-    k = max(1, math.ceil(len(points) / per_slide))
-    base, extra = divmod(len(points), k)
-    out, i = [], 0
-    for j in range(k):
-        size = base + (1 if j < extra else 0)
-        out.append(points[i:i + size])
-        i += size
-    return out
-
-
 def build_slides(data, handle, out_dir, variable=False):
     """Cover + takeaway slides + closing slide.
 
-    With variable=True the number of takeaway slides follows the story (3 to 5 slides in total).
-    Otherwise it is always 3 slides, using the first three takeaways.
+    The takeaway slides are filled by how much text fits, so a bigger story gets more slides.
+    With variable=True a post has 3 to 5 slides; otherwise it is always 3.
     """
     os.makedirs(out_dir, exist_ok=True)
-    points = list(data["points"])[:9] if variable else list(data["points"])[:3]
-    groups = _chunks(points)
+    groups = _pack(list(data["points"]), 3 if variable else 1)
     total = len(groups) + 2
     slides, number = [cover(data, handle)], 1
     for j, group in enumerate(groups):
@@ -559,8 +582,8 @@ def build_slides(data, handle, out_dir, variable=False):
         number += len(group)
     slides.append(outro(data, handle, total))
     paths = []
-    for i, s in enumerate(slides, 1):
+    for i, sl in enumerate(slides, 1):
         p = os.path.join(out_dir, f"slide{i}.jpg")
-        s.save(p, quality=93)
+        sl.save(p, quality=93)
         paths.append(p)
     return paths
