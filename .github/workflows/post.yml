@@ -2,13 +2,9 @@ name: post-tech-news
 
 on:
   schedule:
-    # 5 posts a day, timed for Pakistan (PKT = UTC+5). GitHub can start runs 5-15 minutes late,
-    # so each is set slightly early. Posts land at about 9:00 AM, 1:00 PM, 4:30 PM, 7:30 PM and 10:00 PM PKT.
-    - cron: "45 3 * * *"   # 08:45 PKT
-    - cron: "45 7 * * *"   # 12:45 PKT
-    - cron: "15 11 * * *"  # 16:15 PKT
-    - cron: "15 14 * * *"  # 19:15 PKT
-    - cron: "45 16 * * *"  # 21:45 PKT
+    # 1 post a day, timed for Pakistan's evening peak (PKT = UTC+5). GitHub can start runs 5-15 minutes
+    # late, so it is set slightly early. The post lands at about 8:30 PM PKT.
+    - cron: "15 15 * * *"  # 20:15 PKT
   workflow_dispatch:
 
 permissions:

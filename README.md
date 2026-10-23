@@ -1,6 +1,6 @@
 # Instagram AI Tech News
 
-Every run: Google News + tech RSS -> Gemini picks the best story and writes the post -> Pillow draws a 3-slide branded carousel (no AI images) -> Instagram Graph API publishes it. Runs 3x/day (timed for Pakistan, PKT) on GitHub Actions. All free.
+Every run: Google News + tech RSS -> Gemini picks the best story and writes the post -> Pillow draws a 3-slide branded carousel (no AI images) -> Instagram Graph API publishes it. Runs once a day (evening peak in Pakistan, PKT) on GitHub Actions. All free.
 
 ## Setup
 
@@ -47,7 +47,7 @@ Images land in `posts/`, caption is printed.
 
 ## Notes
 
-- Post times are UTC cron entries in `.github/workflows/post.yml`. GitHub can delay scheduled runs by several minutes.
+- The post time is a UTC cron entry in `.github/workflows/post.yml`. GitHub can delay scheduled runs by several minutes.
 - `posted.json` prevents repeating a story. Old images in `posts/` are pruned after 2 days.
 - Gemini only sees the headline and RSS snippet, not the full article, so the prompt forbids inventing facts. Skim early posts before going fully hands-off.
 - Posts credit the source in the caption. Don't reuse publishers' photos; the cover art is AI-generated.
